@@ -1,0 +1,25 @@
+--- !<tag:barectf.org,2020/3/config>
+trace:
+  type:
+    $include:
+      - stdint.yaml
+      - stdmisc.yaml
+    native-byte-order: little-endian
+    clock-types:
+      default:
+        uuid: 79e49040-21b5-42d4-a873-677261696e65
+        description: "Test clock"
+        $c-type: uint64_t
+        frequency: 1000000000
+        precision: 0
+        origin-is-unix-epoch: false
+    data-stream-types:
+      default:
+        $is-default: true
+        $default-clock-type-name: default
+        event-record-types:
+          my_event:
+            payload-field-type:
+              class: structure
+              members:
+                - value: uint32

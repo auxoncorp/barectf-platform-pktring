@@ -1,0 +1,15 @@
+--- !<tag:barectf.org,2020/3/config>
+trace:
+  type:
+    $include:
+      - stdint.yaml
+      - stdmisc.yaml
+      # See https://github.com/efficios/barectf/blob/master/barectf/include/3/lttng-ust-log-levels.yaml
+      - lttng-ust-log-levels.yaml
+      - platform-trace-type.yaml
+
+    data-stream-types:
+      default:
+        $is-default: true
+        $include:
+          - events.yaml

@@ -1,0 +1,18 @@
+native-byte-order: little-endian
+# See https://barectf.org/docs/barectf/3.0/yaml/clk-type-obj.html#props
+clock-types:
+  default:
+    uuid: 79e49040-21b5-42d4-a873-677261696e65 # These should be unique across time domains
+    description: "Default clock for the example"
+    $c-type: uint64_t
+    frequency: 1000000000 # 1 GHz
+    precision: 0
+    origin-is-unix-epoch: false
+data-stream-types:
+  default:
+    $default-clock-type-name: default
+    packet-context-field-type-extra-members:
+      - node_id:
+          field-type:
+            $inherit: uint8
+            preferred-display-base: hexadecimal

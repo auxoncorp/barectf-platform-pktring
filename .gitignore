@@ -1,0 +1,4 @@
+example/build
+example/generated
+test/build
+test/tests/*/generated/

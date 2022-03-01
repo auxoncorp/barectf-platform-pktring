@@ -1,0 +1,3 @@
+event-record-types:
+  startup: {}
+  shutdown: {}

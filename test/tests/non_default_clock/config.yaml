@@ -1,0 +1,19 @@
+--- !<tag:barectf.org,2020/3/config>
+trace:
+  type:
+    $include:
+      - stdint.yaml
+      - stdmisc.yaml
+    native-byte-order: little-endian
+    clock-types:
+      hrclock:
+        $c-type: uint32_t
+        frequency: 1000000 # 1 MHz
+        origin-is-unix-epoch: false
+    data-stream-types:
+      default:
+        $is-default: true
+        $default-clock-type-name: hrclock
+        event-record-types:
+          startup: {}
+          shutdown: {}
