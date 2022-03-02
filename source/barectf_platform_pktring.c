@@ -39,10 +39,10 @@ typedef struct
     uint16_t read_from;
 } pktring_s;
 
-static barectf_stream_ctx g_ctx = { 0 };
-static pktring_s g_pktring = { 0 };
-static uint8_t* g_pktring_mem = NULL;
-static volatile int g_is_enabled = 0;
+static barectf_stream_ctx g_barectf_stream_ctx = { 0 };
+static pktring_s g_barectf_pktring = { 0 };
+static uint8_t* g_barectf_pktring_mem = NULL;
+static volatile int g_barectf_tracing_is_enabled = 0;
 
 /* pktring API */
 API_VIZ void pktring_init(uint8_t* pktring_buffer);
@@ -82,12 +82,12 @@ static void open_packet(void* data)
     TRACE_MEMSET(pkt, 0, TRACE_CFG_PACKET_SIZE);
 
     /* Use the pkt as the CTF packet buffer */
-    barectf_packet_set_buf(&g_ctx, pkt, TRACE_CFG_PACKET_SIZE);
+    barectf_packet_set_buf(&g_barectf_stream_ctx, pkt, TRACE_CFG_PACKET_SIZE);
 
 #if defined(TRACE_CFG_PACKET_CONTEXT_FIELD)
-    bctf_open_packet(&g_ctx, TRACE_CFG_PACKET_CONTEXT_FIELD);
+    bctf_open_packet(&g_barectf_stream_ctx, TRACE_CFG_PACKET_CONTEXT_FIELD);
 #else
-    bctf_open_packet(&g_ctx);
+    bctf_open_packet(&g_barectf_stream_ctx);
 #endif
 }
 
@@ -96,7 +96,7 @@ static void close_packet(void* data)
     (void) data;
 
     /* Write the CTF packet data to the pkt */
-    bctf_close_packet(&g_ctx);
+    bctf_close_packet(&g_barectf_stream_ctx);
 
     /* Commit the pkt to the pktring */
     pktring_commit();
@@ -107,7 +107,7 @@ void barectf_platform_pktring_init(uint8_t* pktring_buffer)
     TRACE_ASSERT(pktring_buffer != NULL);
     TRACE_ALLOC_CRITICAL_SECTION();
 
-    if(g_is_enabled == 0)
+    if(g_barectf_tracing_is_enabled == 0)
     {
         TRACE_ENTER_CRITICAL_SECTION();
 
@@ -122,11 +122,11 @@ void barectf_platform_pktring_init(uint8_t* pktring_buffer)
         pktring_init(pktring_buffer);
 
         /* Initial buffer provided in the following open_packet() call */
-        barectf_init(&g_ctx, NULL, TRACE_CFG_PACKET_SIZE, cbs, NULL);
+        barectf_init(&g_barectf_stream_ctx, NULL, TRACE_CFG_PACKET_SIZE, cbs, NULL);
 
         open_packet(NULL);
 
-        g_is_enabled = 1;
+        g_barectf_tracing_is_enabled = 1;
 
         TRACE_EXIT_CRITICAL_SECTION();
     }
@@ -136,15 +136,15 @@ void barectf_platform_pktring_fini(void)
 {
     TRACE_ALLOC_CRITICAL_SECTION();
 
-    if(g_is_enabled != 0)
+    if(g_barectf_tracing_is_enabled != 0)
     {
         TRACE_ENTER_CRITICAL_SECTION();
 
-        g_is_enabled = 0;
+        g_barectf_tracing_is_enabled = 0;
 
         /* Close last packet if it contains at least one event */
-        const int pkt_is_open = barectf_packet_is_open(&g_ctx);
-        const int pkt_is_empty = barectf_packet_is_empty(&g_ctx);
+        const int pkt_is_open = barectf_packet_is_open(&g_barectf_stream_ctx);
+        const int pkt_is_empty = barectf_packet_is_empty(&g_barectf_stream_ctx);
         if(pkt_is_open && !pkt_is_empty)
         {
             close_packet(NULL);
@@ -158,13 +158,13 @@ void barectf_platform_pktring_flush(void)
 {
     TRACE_ALLOC_CRITICAL_SECTION();
 
-    if(g_is_enabled != 0)
+    if(g_barectf_tracing_is_enabled != 0)
     {
         TRACE_ENTER_CRITICAL_SECTION();
 
         /* If the last packet has data, flush it to the pktring and open a new one */
-        const int pkt_is_open = barectf_packet_is_open(&g_ctx);
-        const int pkt_is_empty = barectf_packet_is_empty(&g_ctx);
+        const int pkt_is_open = barectf_packet_is_open(&g_barectf_stream_ctx);
+        const int pkt_is_empty = barectf_packet_is_empty(&g_barectf_stream_ctx);
         if(pkt_is_open && !pkt_is_empty)
         {
             close_packet(NULL);
@@ -199,7 +199,7 @@ int barectf_platform_pktring_next_packet(barectf_platform_pktring_packet_callbac
 
 barectf_stream_ctx* barectf_platform_pktring_ctx(void)
 {
-    return &g_ctx;
+    return &g_barectf_stream_ctx;
 }
 
 /* pktring API */
@@ -209,55 +209,55 @@ API_VIZ void pktring_init(uint8_t* pktring_buffer)
     TRACE_ASSERT(
             (TRACE_CFG_NUM_PACKETS != 0) && ((TRACE_CFG_NUM_PACKETS & (TRACE_CFG_NUM_PACKETS - 1)) == 0));
 
-    g_pktring.len = 0;
-    g_pktring.write_at = 0;
-    g_pktring.read_from = 0;
-    g_pktring_mem = pktring_buffer;
+    g_barectf_pktring.len = 0;
+    g_barectf_pktring.write_at = 0;
+    g_barectf_pktring.read_from = 0;
+    g_barectf_pktring_mem = pktring_buffer;
 }
 
 API_VIZ uint16_t pktring_length(void)
 {
-    return g_pktring.len;
+    return g_barectf_pktring.len;
 }
 
 API_VIZ uint8_t* pktring_grant(void)
 {
-    if((g_pktring.len != 0) && (g_pktring.write_at == g_pktring.read_from))
+    if((g_barectf_pktring.len != 0) && (g_barectf_pktring.write_at == g_barectf_pktring.read_from))
     {
         /* This grant is going to overwrite the tail */
-        g_pktring.read_from = (g_pktring.read_from + 1) & PKTRING_LEN_MASK;
+        g_barectf_pktring.read_from = (g_barectf_pktring.read_from + 1) & PKTRING_LEN_MASK;
     }
-    return &g_pktring_mem[g_pktring.write_at * TRACE_CFG_PACKET_SIZE];
+    return &g_barectf_pktring_mem[g_barectf_pktring.write_at * TRACE_CFG_PACKET_SIZE];
 }
 
 API_VIZ void pktring_commit(void)
 {
-    if(g_pktring.len != TRACE_CFG_NUM_PACKETS)
+    if(g_barectf_pktring.len != TRACE_CFG_NUM_PACKETS)
     {
-        g_pktring.len += 1;
+        g_barectf_pktring.len += 1;
     }
-    g_pktring.write_at = (g_pktring.write_at + 1) & PKTRING_LEN_MASK;
+    g_barectf_pktring.write_at = (g_barectf_pktring.write_at + 1) & PKTRING_LEN_MASK;
 }
 
 API_VIZ const uint8_t* pktring_read(void)
 {
-    if(g_pktring.len == 0)
+    if(g_barectf_pktring.len == 0)
     {
         return NULL;
     }
     else
     {
-        const uint8_t* ptr = &g_pktring_mem[g_pktring.read_from * TRACE_CFG_PACKET_SIZE];
+        const uint8_t* ptr = &g_barectf_pktring_mem[g_barectf_pktring.read_from * TRACE_CFG_PACKET_SIZE];
         return ptr;
     }
 }
 
 API_VIZ void pktring_release(void)
 {
-    if(g_pktring.len != 0)
+    if(g_barectf_pktring.len != 0)
     {
-        g_pktring.len -= 1;
-        g_pktring.read_from = (g_pktring.read_from + 1) & PKTRING_LEN_MASK;
+        g_barectf_pktring.len -= 1;
+        g_barectf_pktring.read_from = (g_barectf_pktring.read_from + 1) & PKTRING_LEN_MASK;
     }
 }
 
