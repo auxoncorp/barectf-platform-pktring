@@ -29,8 +29,10 @@ int main(int argc, char** argv)
     g_tracer = barectf_platform_pktring_ctx();
     assert(g_tracer == NULL); /* When tracing not enabled, the no-op variant returns NULL */
 
+    assert(barectf_platform_pktring_is_enabled() == 0);
+
     TRACE(barectf_trace_startup(g_tracer));
-    
+
     TRACE(barectf_trace_not_a_real_thing(g_tracer));
 
     TRACE(barectf_trace_shutdown(g_tracer));

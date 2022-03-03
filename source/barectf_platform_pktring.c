@@ -42,7 +42,6 @@ typedef struct
 static barectf_stream_ctx g_barectf_stream_ctx = { 0 };
 static pktring_s g_barectf_pktring = { 0 };
 static uint8_t* g_barectf_pktring_mem = NULL;
-static volatile int g_barectf_tracing_is_enabled = 0;
 
 /* pktring API */
 API_VIZ void pktring_init(uint8_t* pktring_buffer);
@@ -107,7 +106,7 @@ void barectf_platform_pktring_init(uint8_t* pktring_buffer)
     TRACE_ASSERT(pktring_buffer != NULL);
     TRACE_ALLOC_CRITICAL_SECTION();
 
-    if(g_barectf_tracing_is_enabled == 0)
+    if(barectf_platform_pktring_is_enabled() == 0)
     {
         TRACE_ENTER_CRITICAL_SECTION();
 
@@ -126,8 +125,6 @@ void barectf_platform_pktring_init(uint8_t* pktring_buffer)
 
         open_packet(NULL);
 
-        g_barectf_tracing_is_enabled = 1;
-
         TRACE_EXIT_CRITICAL_SECTION();
     }
 }
@@ -136,11 +133,9 @@ void barectf_platform_pktring_fini(void)
 {
     TRACE_ALLOC_CRITICAL_SECTION();
 
-    if(g_barectf_tracing_is_enabled != 0)
+    if(barectf_platform_pktring_is_enabled() != 0)
     {
         TRACE_ENTER_CRITICAL_SECTION();
-
-        g_barectf_tracing_is_enabled = 0;
 
         /* Close last packet if it contains at least one event */
         const int pkt_is_open = barectf_packet_is_open(&g_barectf_stream_ctx);
@@ -150,15 +145,22 @@ void barectf_platform_pktring_fini(void)
             close_packet(NULL);
         }
 
+        barectf_enable_tracing(&g_barectf_stream_ctx, 0);
+
         TRACE_EXIT_CRITICAL_SECTION();
     }
+}
+
+int barectf_platform_pktring_is_enabled(void)
+{
+    return barectf_is_tracing_enabled(&g_barectf_stream_ctx);
 }
 
 void barectf_platform_pktring_flush(void)
 {
     TRACE_ALLOC_CRITICAL_SECTION();
 
-    if(g_barectf_tracing_is_enabled != 0)
+    if(barectf_platform_pktring_is_enabled() != 0)
     {
         TRACE_ENTER_CRITICAL_SECTION();
 

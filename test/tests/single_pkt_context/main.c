@@ -21,7 +21,11 @@ int main(int argc, char** argv)
     (void) argc;
     (void) argv;
 
+    assert(barectf_platform_pktring_is_enabled() == 0);
+
     barectf_platform_pktring_init(&g_pktring_mem[0]);
+
+    assert(barectf_platform_pktring_is_enabled() == 1);
 
     g_tracer = barectf_platform_pktring_ctx();
     assert(g_tracer != NULL);

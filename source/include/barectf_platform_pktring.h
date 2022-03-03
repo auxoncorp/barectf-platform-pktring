@@ -103,6 +103,9 @@ void barectf_platform_pktring_init(uint8_t* pktring_buffer);
 
 void barectf_platform_pktring_fini(void);
 
+/* A wrapper to barectf_is_tracing_enabled */
+int barectf_platform_pktring_is_enabled(void);
+
 /* Write the currently open packet, if any, to the pktring. */
 void barectf_platform_pktring_flush(void);
 
@@ -124,6 +127,7 @@ barectf_stream_ctx* barectf_platform_pktring_ctx(void);
 typedef int barectf_stream_ctx;
 #define barectf_platform_pktring_init(x) TRACE_NOOP_STATEMENT
 #define barectf_platform_pktring_fini() TRACE_NOOP_STATEMENT
+#define barectf_platform_pktring_is_enabled() 0
 #define barectf_platform_pktring_flush() TRACE_NOOP_STATEMENT
 #define barectf_platform_pktring_next_packet(x) 0
 #define barectf_platform_pktring_ctx() (NULL)
