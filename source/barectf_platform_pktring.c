@@ -39,9 +39,9 @@ typedef struct
     uint16_t read_from;
 } pktring_s;
 
-static barectf_stream_ctx g_barectf_stream_ctx = { 0 };
-static pktring_s g_barectf_pktring = { 0 };
-static uint8_t* g_barectf_pktring_mem = NULL;
+static barectf_stream_ctx g_barectf_stream_ctx;
+static pktring_s g_barectf_pktring;
+static uint8_t* g_barectf_pktring_mem;
 
 /* pktring API */
 API_VIZ void pktring_init(uint8_t* pktring_buffer);
