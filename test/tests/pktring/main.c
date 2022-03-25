@@ -179,11 +179,11 @@ static void grant_not_committed_moves_tail(void)
     assert(rpkt != NULL);
     check_pkt(rpkt, 2);
     pktring_release();
-    assert(pktring_length() == TRACE_CFG_NUM_PACKETS - 1);
+    assert(pktring_length() == TRACE_CFG_NUM_PACKETS - 2);
 
     /* Commit marks it occupied */
     pktring_commit();
-    assert(pktring_length() == TRACE_CFG_NUM_PACKETS);
+    assert(pktring_length() == TRACE_CFG_NUM_PACKETS - 1);
 }
 
 static void full_circle(void)

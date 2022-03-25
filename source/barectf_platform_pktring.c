@@ -228,6 +228,11 @@ API_VIZ uint8_t* pktring_grant(void)
     {
         /* This grant is going to overwrite the tail */
         g_barectf_pktring.read_from = (g_barectf_pktring.read_from + 1) & PKTRING_LEN_MASK;
+        /* Keep the reader from reading active grant */
+        if(g_barectf_pktring.len != 0)
+        {
+            g_barectf_pktring.len -= 1;
+        }
     }
     return &g_barectf_pktring_mem[g_barectf_pktring.write_at * TRACE_CFG_PACKET_SIZE];
 }
