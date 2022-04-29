@@ -30,18 +30,42 @@
 #endif
 #define bctf_close_packet(ctx) TRACE_CAT3(barectf_, TRACE_CFG_STREAM_TYPE, _close_packet)(ctx)
 
-/* Simple ring buffer for CTF packets */
+#define DEBUG_MARKER0 (0xF1F1)
+#define DEBUG_MARKER1 (0xF2F2)
+#define DEBUG_MARKER2 (0xF3F3)
+#define DEBUG_MARKER3 (0xF3F3)
+
+/* Simple ring buffer for CTF packets, starts with 0xB11BF11F, ends with ~0xB11BF11F */
 #define PKTRING_LEN_MASK (TRACE_CFG_NUM_PACKETS - 1)
+#define PKTRING_MASK_INDEX(i) (i & PKTRING_LEN_MASK)
 typedef struct
 {
-    uint16_t len;
+    /* 0xB11BF11F */
+    volatile uint8_t marker0;
+    volatile uint8_t marker1;
+    volatile uint8_t marker2;
+    volatile uint8_t marker3;
+
     uint16_t write_at;
+    uint16_t overwrite;
+    uint16_t grant_active;
     uint16_t read_from;
+
+    uint16_t debug_marker0; /* DEBUG_MARKER0 */
+    uint16_t debug_marker1; /* DEBUG_MARKER1 */
+    uint8_t *pktring_mem;
+    uint16_t debug_marker2; /* DEBUG_MARKER2 */
+    uint16_t debug_marker3; /* DEBUG_MARKER3 */
+
+    /* ~0xB11BF11F == 0x4EE40EE0 */
+    uint8_t marker4;
+    uint8_t marker5;
+    uint8_t marker6;
+    uint8_t marker7;
 } pktring_s;
 
 static barectf_stream_ctx g_barectf_stream_ctx;
 static pktring_s g_barectf_pktring;
-static uint8_t* g_barectf_pktring_mem;
 
 /* pktring API */
 API_VIZ void pktring_init(uint8_t* pktring_buffer);
@@ -205,66 +229,78 @@ barectf_stream_ctx* barectf_platform_pktring_ctx(void)
 }
 
 /* pktring API */
+static inline uint16_t max16(const uint16_t a, const uint16_t b)
+{
+    return a > b ? a : b;
+}
+
 API_VIZ void pktring_init(uint8_t* pktring_buffer)
 {
     /* Ensure ring length is a power of 2 */
     TRACE_ASSERT(
             (TRACE_CFG_NUM_PACKETS != 0) && ((TRACE_CFG_NUM_PACKETS & (TRACE_CFG_NUM_PACKETS - 1)) == 0));
 
-    g_barectf_pktring.len = 0;
+    g_barectf_pktring.marker4 = 0xE0;
+    g_barectf_pktring.marker5 = 0x0E;
+    g_barectf_pktring.marker6 = 0xE4;
+    g_barectf_pktring.marker7 = 0x4E;
+
     g_barectf_pktring.write_at = 0;
+    g_barectf_pktring.overwrite = 0;
+    g_barectf_pktring.grant_active = 0;
     g_barectf_pktring.read_from = 0;
-    g_barectf_pktring_mem = pktring_buffer;
+    g_barectf_pktring.debug_marker0 = DEBUG_MARKER0;
+    g_barectf_pktring.debug_marker1 = DEBUG_MARKER1;
+    g_barectf_pktring.pktring_mem = pktring_buffer;
+    g_barectf_pktring.debug_marker2 = DEBUG_MARKER2;
+    g_barectf_pktring.debug_marker3 = DEBUG_MARKER3;
+
+    g_barectf_pktring.marker0 = 0x1F;
+    g_barectf_pktring.marker1 = 0xF1;
+    g_barectf_pktring.marker2 = 0x1B;
+    g_barectf_pktring.marker3 = 0xB1;
 }
 
 API_VIZ uint16_t pktring_length(void)
 {
-    return g_barectf_pktring.len;
+    return g_barectf_pktring.write_at - max16(g_barectf_pktring.read_from, g_barectf_pktring.overwrite);
 }
 
 API_VIZ uint8_t* pktring_grant(void)
 {
-    if((g_barectf_pktring.len != 0) && (g_barectf_pktring.write_at == g_barectf_pktring.read_from))
+    g_barectf_pktring.grant_active = 1;
+    if(g_barectf_pktring.write_at == (g_barectf_pktring.overwrite + TRACE_CFG_NUM_PACKETS))
     {
-        /* This grant is going to overwrite the tail */
-        g_barectf_pktring.read_from = (g_barectf_pktring.read_from + 1) & PKTRING_LEN_MASK;
-        /* Keep the reader from reading active grant */
-        if(g_barectf_pktring.len != 0)
-        {
-            g_barectf_pktring.len -= 1;
-        }
+        g_barectf_pktring.overwrite += 1;
     }
-    return &g_barectf_pktring_mem[g_barectf_pktring.write_at * TRACE_CFG_PACKET_SIZE];
+    return &g_barectf_pktring.pktring_mem[PKTRING_MASK_INDEX(g_barectf_pktring.write_at) * TRACE_CFG_PACKET_SIZE];
 }
 
 API_VIZ void pktring_commit(void)
 {
-    if(g_barectf_pktring.len != TRACE_CFG_NUM_PACKETS)
-    {
-        g_barectf_pktring.len += 1;
-    }
-    g_barectf_pktring.write_at = (g_barectf_pktring.write_at + 1) & PKTRING_LEN_MASK;
+    g_barectf_pktring.write_at += 1;
+    g_barectf_pktring.grant_active = 0;
 }
 
 API_VIZ const uint8_t* pktring_read(void)
 {
-    if(g_barectf_pktring.len == 0)
+    if(g_barectf_pktring.write_at == g_barectf_pktring.read_from)
     {
         return NULL;
     }
     else
     {
-        const uint8_t* ptr = &g_barectf_pktring_mem[g_barectf_pktring.read_from * TRACE_CFG_PACKET_SIZE];
+        g_barectf_pktring.read_from = max16(g_barectf_pktring.read_from, g_barectf_pktring.overwrite);
+        const uint8_t* ptr = &g_barectf_pktring.pktring_mem[PKTRING_MASK_INDEX(g_barectf_pktring.read_from) * TRACE_CFG_PACKET_SIZE];
         return ptr;
     }
 }
 
 API_VIZ void pktring_release(void)
 {
-    if(g_barectf_pktring.len != 0)
+    if(g_barectf_pktring.write_at != g_barectf_pktring.read_from)
     {
-        g_barectf_pktring.len -= 1;
-        g_barectf_pktring.read_from = (g_barectf_pktring.read_from + 1) & PKTRING_LEN_MASK;
+        g_barectf_pktring.read_from = max16(g_barectf_pktring.read_from + 1, g_barectf_pktring.overwrite + 1);
     }
 }
 

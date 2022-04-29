@@ -69,8 +69,8 @@ typedef void (*barectf_platform_pktring_packet_callback)(const uint8_t* packet);
 #error "TRACE_CFG_NUM_PACKETS must be defined and greater than zero"
 #endif
 
-#if (TRACE_CFG_NUM_PACKETS > 65535)
-#error "TRACE_CFG_NUM_PACKETS is too big, it must fit into a uin16_t"
+#if (TRACE_CFG_NUM_PACKETS > 32768)
+#error "TRACE_CFG_NUM_PACKETS is too big, it must be less than or equal to 2^15"
 #endif
 
 /* Size in bytes of the pktring memory buffer, allocated by the user */
