@@ -1,0 +1,27 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install barectf
+        run: |
+          sudo pip3 install barectf
+
+      - name: Build the example
+        run: |
+          cd example
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=gcc -G "Unix Makefiles" ..
+          make
+
+      - name: Run the tests
+        run: |
+          cd test
+          ./run-tests
